@@ -18,16 +18,23 @@ Scoreboard supports alpha-channel HTML templates (i.e. transparency).
  
 # Setup
 
-1. Install the Python dependencies with
+1. Setup a Python virtual environment
 
 ```
-pip install -r requirements.txt
+> python3 -m venv .env
+> source .env/bin/activate
 ```
 
-2. Install the playwright browser
+2. Install the Python dependencies with
 
 ```
-playwright install chromium
+> pip install -r requirements.txt
+```
+
+3. Install the playwright browser
+
+```
+> playwright install chromium
 ```
 
 # Usage
