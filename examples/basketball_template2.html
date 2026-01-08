@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Basketball Scoreboard Overlay</title>
+
+<style>
+  /* Reset */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  body {
+    background: transparent; /* Important for video overlays */
+  }
+
+  /* Scoreboard container */
+  .scoreboard {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 520px;
+    height: 80px;
+  }
+
+  /* Team sections */
+  .team {
+    flex: 1;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .team.home {
+    background: rgba(0, 102, 204, 0.85);
+  }
+
+  .team.away {
+    background: rgba(204, 0, 0, 0.85);
+    text-align: right;
+  }
+
+  .team-name {
+    font-size: 18px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .team-score {
+    font-size: 28px;
+    font-weight: bold;
+  }
+
+  /* Center info (quarter) */
+  .center-info {
+    width: 90px;
+    text-align: center;
+    background: #111;
+    padding: 10px 0;
+  }
+
+  .quarter-label {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+
+  .quarter-number {
+    font-size: 26px;
+    font-weight: bold;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="scoreboard">
+  <!-- Home Team -->
+  <div class="team home">
+    <div class="team-name">{{team1}}</div>
+    <div class="team-score">{{score1}}</div>
+  </div>
+
+  <!-- Quarter Info -->
+  <div class="center-info">
+    <div class="quarter-label">QTR</div>
+    <div class="quarter-number">{{quarter}}</div>
+  </div>
+
+  <!-- Away Team -->
+  <div class="team away">
+    <div class="team-name">{{team2}}</div>
+    <div class="team-score">{{score2}}</div>
+  </div>
+</div>
+
+</body>
+</html>
