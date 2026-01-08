@@ -1,5 +1,4 @@
-# scoreboard
-Scoreboard - A Video Overlay Generator
+# Scoreboard - A Video Overlay Generator
 
 Scoreboard creates a video file that can be used as an overlay in your favourite video editing software. It is designed to create a scoreboard for home-edited sport movies, but could be used for more generic purposes.
 
@@ -14,8 +13,8 @@ Scoreboard supports alpha-channel HTML templates (i.e. transparency).
 
 # Requirements
 
- - Python 3.x
- - Ffmpeg
+ - Python 3.12
+ - FFmpeg
  
 # Setup
 
@@ -33,8 +32,35 @@ playwright install chromium
 
 # Usage
 
+## CSV Input file
+
+The CSV file should have a format similar to
+
 ```
-scoreboard.py examples/basketball_scores.csv examples/basketball_template2.html overlay.mov
+timestamp, name1, name2, ...
+0.0,  0, 0, ..
+12.0, 2, 0, ...
+25.2, 2, 2, ...
+```
+
+where the first line defines the name of the template variables. The first column should always be called `timestamp` and its values should be in seconds. There can be as many additional columns as required, the first line label is used to match any corresponding placeholders in the HTML template.
+
+## HTML Template
+
+The scoreboard HTML template can be any standard HTML/CSS code. It should contain placeholders for the values specified in both the CSV file and on the command line with the `--set` option. The placeholder format is
+
+```
+  {{variable_name}}
+```
+
+where `variable_name` matches the name specified in the first line of the CSV file, or from the `--set` command line option.
+
+Typically, the CSV file should provide values that change over the length of the video (e.g. the game score), while the command line `--set` options should provide values that are constant (e.g. the name of the teams).
+
+## Example
+
+```
+scoreboard.py --set "team1=Los Angeles" --set "team2=Chicago" examples/basketball_scores.csv examples/basketball_template2.html overlay.mov
 ```
 
 # Video Output
