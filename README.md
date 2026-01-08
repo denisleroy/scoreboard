@@ -11,3 +11,33 @@ Scoreboard takes two inputs:
 The output is a movie file that can be imported into your favourite movie editing software and added to your home video in picture-in-picture mode.
 
 Scoreboard supports alpha-channel HTML templates (i.e. transparency).
+
+# Requirements
+
+ - Python 3.x
+ - Ffmpeg
+ 
+# Setup
+
+1. Install the Python dependencies with
+
+```
+pip install -r requirements.txt
+```
+
+2. Install the playwright browser
+
+```
+playwright install chromium
+```
+
+# Usage
+
+```
+scoreboard.py examples/basketball_scores.csv examples/basketball_template2.html overlay.mov
+```
+
+# Video Output
+
+Scoreboard uses the open-source `ffmpeg` tool to generate its video output. By default, it uses the `prores` codec as it supports transparency (alpha-channel) and has good support in tools such as `iMovie`. You can select a different video codec with the `-c` option, for example `-c h264`. `ffmpeg -codecs` will display the available codecs of your ffmpeg installation. For `iMovie` on MacOS, we recommend using the default `prores` codec and save the output into a `.mov` file (Quicktime format).
+
