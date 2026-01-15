@@ -55,6 +55,13 @@ class ScoreBoard:
         """Close the browser."""
         if self.driver:
             self.driver.close()
+
+    def parse_timestamp(self, strval):
+        if 'm' in strval:
+            parts = strval.split('m')
+            return 60*int(parts[0]) + float(parts[1])
+        else:
+            return float(strval)
             
     def read_csv_data(self, csv_path):
         """
@@ -70,11 +77,17 @@ class ScoreBoard:
         """
         data = []
         with open(csv_path, 'r') as f:
+            prev_row = None
             reader = csv.DictReader(f)
             for row in reader:
                 # Convert timestamp to float
-                row['timestamp'] = float(row['timestamp'])
+                row['timestamp'] = self.parse_timestamp(row['timestamp'])
                 data.append(row)
+                if prev_row:
+                    if row['timestamp'] <= prev_row['timestamp']:
+                        print("Out of order timestamp")
+                        sys.exit(-1)
+                prev_row = row
         
         # Sort by timestamp
         data.sort(key=lambda x: x['timestamp'])
