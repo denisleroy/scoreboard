@@ -50,7 +50,7 @@ timestamp, name1, name2, ...
 25.2, 2, 2, ...
 ```
 
-where the first line defines the name of the template variables. The first column should always be called `timestamp` and its values should be in seconds. There can be as many additional columns as required, the first line label is used to match any corresponding placeholders in the HTML template.
+where the first line defines the name of the template variables. The first column should always be called `timestamp` and its values should be in seconds (int or float value) but can be preceded by a value in minutes followed by an 'm' character (e.g. 2m45.2). There can be as many additional columns as required, the first line label is used to match any corresponding placeholders in the HTML template.
 
 ## HTML Template
 
