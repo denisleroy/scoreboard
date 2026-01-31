@@ -85,7 +85,7 @@ class ScoreBoard:
                 data.append(row)
                 if prev_row:
                     if row['timestamp'] <= prev_row['timestamp']:
-                        print("Out of order timestamp")
+                        print("Out of order timestamp", row['timestamp'])
                         sys.exit(-1)
                 prev_row = row
         
@@ -254,8 +254,21 @@ class ScoreBoard:
         left = non_transparent_cols[0]
         right = non_transparent_cols[-1]
 
+        left = left - 20
+        if left < 0:
+            left = 0
+        top = top - 20
+        if top < 0:
+            top = 0
+        right = right + 20
+        if right >= img.width:
+            right = img.width-1
+        bottom = bottom + 20
+        if bottom >= img.height:
+            bottim = img.height - 1
+
         # Crop the image
-        cropped = img.crop((left, top, right + 1, bottom + 1))
+        cropped = img.crop((left, top, right, bottom))
 
         # Save back to the same file
         cropped.save(image_path)
