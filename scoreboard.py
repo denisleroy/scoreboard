@@ -10,7 +10,6 @@ import numpy as np
 import io
 import tempfile
 import argparse
-import shutil
 import shlex
 
 class ScoreBoard:
@@ -30,7 +29,6 @@ class ScoreBoard:
         self.driver = None
         self.page = None
         self.p = None
-        self.last_params = None
         self.codec = args.codec
         self.global_params = {}
 
@@ -128,9 +126,37 @@ class ScoreBoard:
                 result = result.replace(placeholder, str(value))
         return result
     
+    def build_segments(self, data, duration):
+        """
+        Build a list of segments, where each segment is a unique set of
+        parameters and the time span it covers.
+
+        Returns:
+            List of dicts: [{"params": {...}, "start": float, "end": float}, ...]
+        """
+        segments = []
+        for i, row in enumerate(data):
+            start = row['timestamp']
+            if i + 1 < len(data):
+                end = data[i + 1]['timestamp']
+            else:
+                end = duration
+            if end > start:
+                segments.append({
+                    "params": {k: v for k, v in row.items() if k != 'timestamp'},
+                    "start": start,
+                    "end": end,
+                })
+        return segments
+
     def generate_overlay(self, csv_path, template_path, output_path):
         """
         Generate video overlay from CSV data and HTML template.
+
+        Only renders one image per unique parameter change, then uses
+        FFmpeg's concat demuxer with per-segment durations to build the
+        video. This avoids generating (and copying) thousands of identical
+        frames.
         
         Args:
             csv_path: Path to CSV file with timestamps and parameters
@@ -154,51 +180,85 @@ class ScoreBoard:
             duration = self.args.duration
         else:
             duration = data[-1]['timestamp'] + 1.0  # Add 1 second after last change
-        
+
+        segments = self.build_segments(data, duration)
         total_frames = int(duration * self.fps)
         
         # Create temporary directory for frames
         with tempfile.TemporaryDirectory(delete=not self.args.keep) as temp_dir:
-            print(f"Generating {total_frames} frames in {temp_dir}... ")
-            
-            current_data_idx = 0
-            current_params = data[0]
-            
-            for frame_num in range(total_frames):
-                timestamp = frame_num / self.fps
-                
-                # Update parameters if we've reached a new timestamp
-                while (current_data_idx < len(data) - 1 and 
-                       timestamp >= data[current_data_idx + 1]['timestamp']):
-                    current_data_idx += 1
-                    current_params = data[current_data_idx]
-                
-                # Fill template with current parameters
-                html_content = self.fill_template(template, self.global_params, current_params)
-                
-                # Render to image
-                frame_path = os.path.join(temp_dir, f'frame_{frame_num:06d}.png')
+            print(f"Rendering {len(segments)} unique frames "
+                  f"(instead of {total_frames} total)...")
 
-                if current_params != self.last_params:
-                    self.render_html_to_image(html_content, frame_path)
-                    self.crop_transparent_borders(frame_path)
-                else:
-                    shutil.copy(self.last_frame_path, frame_path)
+            concat_entries = []
 
-                self.last_frame_path = frame_path
-                self.last_params = current_params
-                
-                if frame_num % 30 == 0:
-                    print(f"  Progress: {frame_num}/{total_frames} frames")
-            
+            for idx, seg in enumerate(segments):
+                seg_duration = seg['end'] - seg['start']
+                frame_path = os.path.join(temp_dir, f'segment_{idx:06d}.png')
+
+                html_content = self.fill_template(
+                    template, self.global_params, seg['params'])
+                self.render_html_to_image(html_content, frame_path)
+                self.crop_transparent_borders(frame_path)
+
+                concat_entries.append({
+                    "file": frame_path,
+                    "duration": seg_duration,
+                })
+
+                print(f"  Rendered segment {idx + 1}/{len(segments)} "
+                      f"({seg_duration:.2f}s)")
+
             print("Encoding video with FFmpeg...")
-            self.encode_video(temp_dir, output_path)
+            self.encode_video_concat(concat_entries, output_path)
         
         self.cleanup_browser()
         print(f"Wrote: {output_path}")
     
+    def encode_video_concat(self, concat_entries, output_path):
+        """
+        Encode video using FFmpeg's concat demuxer.
+
+        Each entry specifies an image file and how long it should be shown,
+        so FFmpeg handles the "frame duplication" internally without us
+        needing to produce thousands of identical PNGs on disk.
+        """
+        # Write the concat list file
+        concat_dir = os.path.dirname(concat_entries[0]['file'])
+        concat_path = os.path.join(concat_dir, 'concat.txt')
+        with open(concat_path, 'w') as f:
+            for entry in concat_entries:
+                # FFmpeg concat format: file, then duration directive
+                f.write(f"file {shlex.quote(entry['file'])}\n")
+                f.write(f"duration {entry['duration']:.6f}\n")
+            # Repeat the last file so the final duration is honoured
+            f.write(f"file {shlex.quote(concat_entries[-1]['file'])}\n")
+
+        cmd = [
+            'ffmpeg',
+            '-y',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', concat_path,
+            '-c:v', self.codec,
+            '-preset', 'medium',
+            '-crf', '23',
+            '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2',
+            '-pix_fmt', 'yuva420p',
+            '-movflags', '+faststart',
+            '-r', str(self.fps),   # Force constant output frame rate
+        ]
+        if self.args.ffmpeg_extras:
+            for xarg in self.args.ffmpeg_extras:
+                cmd.append(xarg)
+        cmd.append(output_path)
+
+        print("Running command:\n   ", " ".join(map(shlex.quote, cmd)))
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise Exception(proc.stderr)
+
     def encode_video(self, frames_dir, output_path):
-        """Encode PNG frames into MP4 video using FFmpeg."""
+        """Encode PNG frames into MP4 video using FFmpeg (legacy frame-sequence mode)."""
         cmd = [
             'ffmpeg',
             '-y',  # Overwrite output file
@@ -265,7 +325,7 @@ class ScoreBoard:
             right = img.width-1
         bottom = bottom + 20
         if bottom >= img.height:
-            bottom = img.height - 1
+            bottim = img.height - 1
 
         # Crop the image
         cropped = img.crop((left, top, right, bottom))
