@@ -265,7 +265,7 @@ class ScoreBoard:
             right = img.width-1
         bottom = bottom + 20
         if bottom >= img.height:
-            bottim = img.height - 1
+            bottom = img.height - 1
 
         # Crop the image
         cropped = img.crop((left, top, right, bottom))
