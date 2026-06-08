@@ -65,6 +65,28 @@ where `variable_name` matches the name specified in the first line of the CSV fi
 
 Typically, the CSV file should provide values that change over the length of the video (e.g. the game score), while the command line `--set` options should provide values that are constant (e.g. the name of the teams).
 
+## Animating value changes
+
+Scoreboard can animate a value whenever it changes in the CSV file (e.g. a score popping when a basket is scored). For every CSV column `X`, an additional `{{anim_X}}` placeholder is available. Place it in the `style` attribute of the element you want to animate:
+
+```html
+  <div class="score" style="{{anim_score1}}">{{score1}}</div>
+```
+
+When the column's value changes, Scoreboard fills `{{anim_X}}` with an inline CSS animation referencing a keyframes rule named `sb-pop`, which your template must define. For example:
+
+```css
+  @keyframes sb-pop {
+      0%   { transform: scale(1);    color: #fff; }
+      30%  { transform: scale(1.35); color: #ffd23f; }
+      100% { transform: scale(1);    color: #fff; }
+  }
+```
+
+For columns that did not change (and on frames outside the animation), `{{anim_X}}` is replaced with an empty string. See `examples/basketball_template2.html` for a complete example.
+
+The animation length is controlled with the `-a`/`--anim-duration` option (in seconds, default `0.6`; use `0` to disable animations entirely). Because each animation step is rendered as a separate frame, a higher `--fps` produces a smoother animation.
+
 ## Example
 
 ```

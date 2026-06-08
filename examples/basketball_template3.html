@@ -82,10 +82,21 @@
         height: 46px;
     }
 
+    /*
+     * The window clips the scrolling number. overflow:hidden must live on an
+     * ancestor of the animated element, so the animation (applied to .score)
+     * is masked to this cell as the new value scrolls up into place.
+     */
+    .score-window {
+        overflow: hidden;
+        height: 46px;
+    }
+
     .score {
         display: flex;
         align-items: center;
         justify-content: center;
+        height: 100%;
         font-size: 30px;
         font-weight: 700;
         color: var(--text-main);
@@ -96,22 +107,20 @@
      * "animation: sb-pop ...; animation-delay: -Xs; animation-play-state: paused;"
      * into the {{anim_scoreN}} placeholder for whichever score just changed,
      * seeking this keyframe sequence to a specific point in time per frame.
+     *
+     * The new value scrolls vertically into the .score-window: it starts fully
+     * below the window and slides up to its resting position, where it holds
+     * for the remainder of the animation.
      */
     @keyframes sb-pop {
         0% {
-            transform: scale(1);
-            color: var(--text-main);
-            text-shadow: none;
+            transform: translateY(110%);
         }
-        30% {
-            transform: scale(1.35);
-            color: #ffd23f;
-            text-shadow: 0 0 12px rgba(255, 210, 63, 0.9);
+        70% {
+            transform: translateY(0);
         }
         100% {
-            transform: scale(1);
-            color: var(--text-main);
-            text-shadow: none;
+            transform: translateY(0);
         }
     }
 
@@ -139,9 +148,13 @@
     </div>
 
     <div class="scores">
-        <div class="score" style="{{anim_score1}}">{{score1}}</div>
+        <div class="score-window">
+            <div class="score" style="{{anim_score1}}">{{score1}}</div>
+        </div>
         <div class="quarter">Q{{quarter}}</div>
-        <div class="score" style="{{anim_score2}}">{{score2}}</div>
+        <div class="score-window">
+            <div class="score" style="{{anim_score2}}">{{score2}}</div>
+        </div>
     </div>
 </div>
 

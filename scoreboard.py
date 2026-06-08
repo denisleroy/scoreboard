@@ -30,8 +30,10 @@ class ScoreBoard:
         self.driver = None
         self.page = None
         self.p = None
-        self.last_params = None
+        self.last_html = None
+        self.last_frame_path = None
         self.codec = args.codec
+        self.anim_duration = args.anim_duration
         self.global_params = {}
 
         if args.params:
@@ -113,15 +115,17 @@ class ScoreBoard:
                                  full_page=False,
                                  omit_background=True)
 
-    def fill_template(self, template_content, global_params, params):
+    def fill_template(self, template_content, global_params, params, anim_params=None):
         """
         Fill HTML template with parameter values.
-        
+
         Placeholders in template: {{param_name}}
         """
         result = template_content
         allparams = params.copy()
         allparams.update(global_params)
+        if anim_params:
+            allparams.update(anim_params)
         for key, value in allparams.items():
             if key != 'timestamp':
                 placeholder = '{{' + key + '}}'
@@ -142,7 +146,16 @@ class ScoreBoard:
         
         if not data:
             raise ValueError("CSV file is empty or invalid")
-        
+
+        # Determine, for each row, which columns changed relative to the
+        # previous row. Used to animate only the value(s) that actually moved.
+        columns = [k for k in data[0].keys() if k != 'timestamp']
+        changed_fields = [set() for _ in data]
+        for i in range(1, len(data)):
+            for k in columns:
+                if data[i].get(k) != data[i - 1].get(k):
+                    changed_fields[i].add(k)
+
         print("Reading HTML template...")
         with open(template_path, 'r') as f:
             template = f.read()
@@ -173,20 +186,38 @@ class ScoreBoard:
                     current_data_idx += 1
                     current_params = data[current_data_idx]
                 
+                # Build animation styles for any column that changed at the
+                # active row. The CSS animation is frozen at the current point
+                # in its timeline via a negative, paused animation-delay, so
+                # each sub-frame of a change renders a distinct snapshot.
+                anim_params = {f'anim_{c}': '' for c in columns}
+                if self.anim_duration > 0 and current_data_idx > 0:
+                    elapsed = timestamp - data[current_data_idx]['timestamp']
+                    if 0 <= elapsed < self.anim_duration:
+                        for field in changed_fields[current_data_idx]:
+                            anim_params[f'anim_{field}'] = (
+                                f'animation: sb-pop {self.anim_duration}s ease-out; '
+                                f'animation-delay: -{elapsed:.3f}s; '
+                                f'animation-play-state: paused;')
+
                 # Fill template with current parameters
-                html_content = self.fill_template(template, self.global_params, current_params)
-                
+                html_content = self.fill_template(
+                    template, self.global_params, current_params, anim_params)
+
                 # Render to image
                 frame_path = os.path.join(temp_dir, f'frame_{frame_num:06d}.png')
 
-                if current_params != self.last_params:
+                # Re-render only when the resulting HTML differs from the last
+                # frame; identical frames are copied. Animation sub-frames each
+                # differ via their animation-delay, so they all get rendered.
+                if html_content != self.last_html:
                     self.render_html_to_image(html_content, frame_path)
                     self.crop_transparent_borders(frame_path)
                 else:
                     shutil.copy(self.last_frame_path, frame_path)
 
                 self.last_frame_path = frame_path
-                self.last_params = current_params
+                self.last_html = html_content
                 
                 if frame_num % 30 == 0:
                     print(f"  Progress: {frame_num}/{total_frames} frames")
@@ -286,6 +317,10 @@ def main():
     parser.add_argument('-d', '--duration', type=float,
                         help="Total video duration in seconds (default: last timestamp + 1s)")
     parser.add_argument('-f', '--fps', type=int, default=5, help='Frames per second (default: 5)')
+    parser.add_argument('-a', '--anim-duration', type=float, default=0.6, dest='anim_duration',
+                        help='Duration in seconds of the value-change animation, '
+                             'using the {{anim_<column>}} template placeholders '
+                             '(0 to disable, default: 0.6)')
     parser.add_argument('-c', '--codec', default='prores', dest='codec',
                         help='Output video format (default: prores)')
     parser.add_argument('--set', action='append', metavar='NAME=VAL', dest='params',
