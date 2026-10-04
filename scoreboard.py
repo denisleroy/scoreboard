@@ -220,8 +220,12 @@ class ScoreBoard:
                 self.last_html = html_content
                 
                 if frame_num % 30 == 0:
-                    print(f"  Progress: {frame_num}/{total_frames} frames")
-            
+                    print(f"\033[2K\r  Progress: {frame_num}/{total_frames} frames",
+                          end="", flush=True)
+
+            # Terminate the in-place progress line with a real newline.
+            print(f"\033[2K\r  Progress: {total_frames}/{total_frames} frames")
+
             print("Encoding video with FFmpeg...")
             self.encode_video(temp_dir, output_path)
         
