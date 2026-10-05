@@ -335,6 +335,10 @@ def main():
 
     args = parser.parse_args()
 
+    # FFmpeg can only mux ProRes into a QuickTime container
+    if args.codec.startswith('prores') and Path(args.output_file).suffix.lower() != '.mov':
+        parser.error(f"codec '{args.codec}' requires a .mov output file, got: {args.output_file}")
+
     try:
         generator = ScoreBoard(args)
     

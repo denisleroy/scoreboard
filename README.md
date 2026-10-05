@@ -95,5 +95,5 @@ scoreboard.py --set "team1=Los Angeles" --set "team2=Chicago" examples/basketbal
 
 # Video Output
 
-Scoreboard uses the open-source `ffmpeg` tool to generate its video output. By default, it uses the `prores` codec as it supports transparency (alpha-channel) and has good support in tools such as `iMovie`. You can select a different video codec with the `-c` option, for example `-c h264`. `ffmpeg -codecs` will display the available codecs of your ffmpeg installation. For `iMovie` on MacOS, we recommend using the default `prores` codec and save the output into a `.mov` file (Quicktime format).
+Scoreboard uses the open-source `ffmpeg` tool to generate its video output. By default, it uses the `prores` codec as it supports transparency (alpha-channel) and has good support in tools such as `iMovie`. You can select a different video codec with the `-c` option, for example `-c h264`. `ffmpeg -codecs` will display the available codecs of your ffmpeg installation. For `iMovie` on MacOS, we recommend using the default `prores` codec. With `prores`, the output file must use the `.mov` extension (Quicktime format), as ffmpeg cannot store ProRes in other containers; scoreboard exits with an error otherwise.
 
