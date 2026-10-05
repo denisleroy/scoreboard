@@ -97,3 +97,7 @@ scoreboard.py --set "team1=Los Angeles" --set "team2=Chicago" examples/basketbal
 
 Scoreboard uses the open-source `ffmpeg` tool to generate its video output. By default, it uses the `prores` codec as it supports transparency (alpha-channel) and has good support in tools such as `iMovie`. You can select a different video codec with the `-c` option, for example `-c h264`. `ffmpeg -codecs` will display the available codecs of your ffmpeg installation. For `iMovie` on MacOS, we recommend using the default `prores` codec. With `prores`, the output file must use the `.mov` extension (Quicktime format), as ffmpeg cannot store ProRes in other containers; scoreboard exits with an error otherwise.
 
+
+## Frame rate
+
+The output uses a variable frame rate. While values are changing (i.e. during animations), frames are rendered at `-f`/`--fps` frames per second (default `30`). While nothing changes, a single frame is held on screen instead, repeated at most every `--max-frame-duration` seconds (default `1.0`), which keeps ProRes files small. Video editors convert the overlay to the project's frame rate on import, so this is transparent once on the timeline. If your editor has trouble with variable frame rate files, use `--cfr` to emit every frame at a constant `--fps` rate instead.

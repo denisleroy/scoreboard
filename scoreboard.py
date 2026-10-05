@@ -10,7 +10,6 @@ import numpy as np
 import io
 import tempfile
 import argparse
-import shutil
 import shlex
 
 class ScoreBoard:
@@ -21,7 +20,7 @@ class ScoreBoard:
         Args:
             width: Video width in pixels
             height: Video height in pixels
-            fps: Frames per second
+            fps: Sampling rate, i.e. the maximum frame rate of the output
         """
         self.args = args
         self.width = 1920
@@ -31,9 +30,9 @@ class ScoreBoard:
         self.page = None
         self.p = None
         self.last_html = None
-        self.last_frame_path = None
         self.codec = args.codec
         self.anim_duration = args.anim_duration
+        self.max_frame_duration = args.max_frame_duration
         self.global_params = {}
 
         if args.params:
@@ -172,10 +171,21 @@ class ScoreBoard:
         
         # Create temporary directory for frames
         with tempfile.TemporaryDirectory(delete=not self.args.keep) as temp_dir:
-            print(f"Generating {total_frames} frames in {temp_dir}... ")
-            
+            print(f"Sampling {total_frames} frames in {temp_dir}... ")
+
             current_data_idx = 0
             current_params = data[0]
+
+            # Output is variable frame rate: a frame is only emitted when its
+            # content changes, or to repeat the last image once it has been
+            # held for max_frame_duration. The final sample is always emitted
+            # so the video ends on time. Each entry is (image path, frame_num).
+            # With --cfr every sample is emitted, giving a constant frame rate.
+            frames = []
+            if self.args.cfr:
+                max_gap = 1
+            else:
+                max_gap = max(1, round(self.max_frame_duration * self.fps))
             
             for frame_num in range(total_frames):
                 timestamp = frame_num / self.fps
@@ -204,19 +214,19 @@ class ScoreBoard:
                 html_content = self.fill_template(
                     template, self.global_params, current_params, anim_params)
 
-                # Render to image
-                frame_path = os.path.join(temp_dir, f'frame_{frame_num:06d}.png')
-
                 # Re-render only when the resulting HTML differs from the last
-                # frame; identical frames are copied. Animation sub-frames each
-                # differ via their animation-delay, so they all get rendered.
+                # frame. Animation sub-frames each differ via their
+                # animation-delay, so they all get rendered. Unchanged frames
+                # just extend the previous one, up to max_frame_duration.
                 if html_content != self.last_html:
+                    frame_path = os.path.join(temp_dir, f'frame_{frame_num:06d}.png')
                     self.render_html_to_image(html_content, frame_path)
                     self.crop_transparent_borders(frame_path)
-                else:
-                    shutil.copy(self.last_frame_path, frame_path)
+                    frames.append((frame_path, frame_num))
+                elif (frame_num - frames[-1][1] >= max_gap
+                      or frame_num == total_frames - 1):
+                    frames.append((frames[-1][0], frame_num))
 
-                self.last_frame_path = frame_path
                 self.last_html = html_content
                 
                 if frame_num % 30 == 0:
@@ -226,19 +236,46 @@ class ScoreBoard:
             # Terminate the in-place progress line with a real newline.
             print(f"\033[2K\r  Progress: {total_frames}/{total_frames} frames")
 
-            print("Encoding video with FFmpeg...")
-            self.encode_video(temp_dir, output_path)
+            print(f"Encoding {len(frames)} frames with FFmpeg...")
+            concat_path = self.write_concat_list(temp_dir, frames, total_frames)
+            self.encode_video(concat_path, output_path)
         
         self.cleanup_browser()
         print(f"Wrote: {output_path}")
     
-    def encode_video(self, frames_dir, output_path):
-        """Encode PNG frames into MP4 video using FFmpeg."""
+    def write_concat_list(self, frames_dir, frames, total_frames):
+        """
+        Write an FFmpeg concat demuxer list giving each frame its own duration.
+
+        Returns:
+            Path to the list file
+        """
+        concat_path = os.path.join(frames_dir, 'frames.txt')
+        with open(concat_path, 'w') as f:
+            f.write('ffconcat version 1.0\n')
+            for i, (path, frame_num) in enumerate(frames):
+                end = frames[i + 1][1] if i + 1 < len(frames) else total_frames
+                f.write(f"file '{os.path.basename(path)}'\n")
+                # The concat demuxer ignores the final entry's duration and
+                # falls back to the image demuxer's frame rate (25 fps by
+                # default). It must be set on every entry to keep a common
+                # time base.
+                f.write(f'option framerate {self.fps}\n')
+                f.write(f'duration {(end - frame_num) / self.fps:.6f}\n')
+        return concat_path
+
+    def encode_video(self, concat_path, output_path):
+        """Encode PNG frames into a video file using FFmpeg."""
         cmd = [
             'ffmpeg',
             '-y',  # Overwrite output file
-            '-framerate', str(self.fps),
-            '-i', os.path.join(frames_dir, 'frame_%06d.png'),
+            '-f', 'concat',
+            '-safe', '0',  # Needed for 'option' lines in the concat list
+            '-i', concat_path,
+            # Timestamps are multiples of 1/fps; without an explicit time base
+            # FFmpeg assumes 25 fps and snaps (or drops) frames to that grid.
+            '-fps_mode', 'vfr',
+            '-enc_time_base', f'1/{self.fps}',
             '-c:v', self.codec,
             '-preset', 'medium',
             '-crf', '23',
@@ -320,7 +357,13 @@ def main():
     parser.add_argument('output_file', help='Path for output video file')
     parser.add_argument('-d', '--duration', type=float,
                         help="Total video duration in seconds (default: last timestamp + 1s)")
-    parser.add_argument('-f', '--fps', type=int, default=5, help='Frames per second (default: 5)')
+    parser.add_argument('-f', '--fps', type=int, default=30,
+                        help='Frames per second while values change (default: 30)')
+    parser.add_argument('--max-frame-duration', type=float, default=1.0, dest='max_frame_duration',
+                        help='Longest a single frame is held when nothing changes, in seconds '
+                             '(default: 1.0)')
+    parser.add_argument('--cfr', action='store_true', default=False,
+                        help='Encode at a constant frame rate (--fps) instead of a variable one')
     parser.add_argument('-a', '--anim-duration', type=float, default=0.6, dest='anim_duration',
                         help='Duration in seconds of the value-change animation, '
                              'using the {{anim_<column>}} template placeholders '
